@@ -1,0 +1,30 @@
+{
+  "title": "Workspace Launcher",
+  "rules": [
+    {
+      "description": "Map shift + command + return to F18 for Hammerspoon",
+      "manipulators": [
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "return_or_enter",
+            "modifiers": {
+              "mandatory": [
+                "shift",
+                "command"
+              ],
+              "optional": [
+                "any"
+              ]
+            }
+          },
+          "to": [
+            {
+              "key_code": "f18"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
