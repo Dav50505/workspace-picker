@@ -26,8 +26,168 @@ local function openApp(appName)
   hs.application.launchOrFocus(appName)
 end
 
-local function openUrlInBrowser(url)
-  hs.execute("/usr/bin/open -a " .. shellQuote(browser) .. " " .. shellQuote(url), true)
+local cometBrowserAppPath = "/Applications/Comet.app"
+local cometBrowserExecutablePath = cometBrowserAppPath .. "/Contents/MacOS/Comet"
+
+local chromiumBrowserBundleIds = {
+  ["Arc"] = "company.thebrowser.Browser",
+  ["Brave Browser"] = "com.brave.Browser",
+  ["Google Chrome"] = "com.google.Chrome",
+  ["Microsoft Edge"] = "com.microsoft.edgemac",
+  ["Opera"] = "com.operasoftware.Opera",
+  ["Vivaldi"] = "com.vivaldi.Vivaldi",
+}
+
+local chromiumBrowsers = {
+  ["Arc"] = true,
+  ["Brave Browser"] = true,
+  ["Google Chrome"] = true,
+  ["Microsoft Edge"] = true,
+  ["Opera"] = true,
+  ["Vivaldi"] = true,
+}
+
+local function appleScriptQuote(value)
+  return '"' .. tostring(value):gsub("\\", "\\\\"):gsub('"', '\\"') .. '"'
+end
+
+local function openUrlsWithDefaultBehavior(urls)
+  for _, url in ipairs(urls) do
+    hs.execute("/usr/bin/open -a " .. shellQuote(browser) .. " " .. shellQuote(url), true)
+  end
+end
+
+local function runBrowserScript(script, urls)
+  local ok, result = hs.osascript.applescript(script)
+  if ok then
+    return true
+  end
+
+  print("Workspace launcher: new browser window failed: " .. tostring(result))
+  hs.alert.show("Could not create a new " .. browser .. " window; opened URLs normally.", 5)
+  openUrlsWithDefaultBehavior(urls)
+  return false
+end
+
+local function runBrowserCommand(command, urls)
+  local output, ok, exitType, statusCode = hs.execute(command, true)
+  if ok then
+    return true
+  end
+
+  print("Workspace launcher: new browser window command failed: " .. tostring(output))
+  print("Workspace launcher: exit type " .. tostring(exitType) .. ", status " .. tostring(statusCode))
+  hs.alert.show("Could not force a new " .. browser .. " window; opened URLs normally.", 5)
+  openUrlsWithDefaultBehavior(urls)
+  return false
+end
+
+local function openUrlsInSafariWindow(urls)
+  local lines = {
+    "tell application " .. appleScriptQuote(browser),
+    "activate",
+    "make new document with properties {URL:" .. appleScriptQuote(urls[1]) .. "}",
+    "set targetWindow to front window",
+  }
+
+  for index = 2, #urls do
+    table.insert(lines, "tell targetWindow to make new tab at end of tabs with properties {URL:" .. appleScriptQuote(urls[index]) .. "}")
+  end
+
+  table.insert(lines, "set current tab of targetWindow to tab 1 of targetWindow")
+  table.insert(lines, "end tell")
+
+  return runBrowserScript(table.concat(lines, "\n"), urls)
+end
+
+local function openUrlsInCometWindowWithCommand(urls)
+  -- Comet can be missing from Launch Services while its executable still works.
+  if not hs.fs.attributes(cometBrowserExecutablePath) then
+    hs.alert.show("Could not find Comet executable; opened URLs normally.", 5)
+    openUrlsWithDefaultBehavior(urls)
+    return false
+  end
+
+  local commandParts = {
+    shellQuote(cometBrowserExecutablePath),
+    "--new-window",
+  }
+
+  for _, url in ipairs(urls) do
+    table.insert(commandParts, shellQuote(url))
+  end
+
+  local output, ok, exitType, statusCode = hs.execute(table.concat(commandParts, " ") .. " >/dev/null 2>&1 &", true)
+  if ok then
+    return true
+  end
+
+  print("Workspace launcher: Comet executable window command failed: " .. tostring(output))
+  print("Workspace launcher: exit type " .. tostring(exitType) .. ", status " .. tostring(statusCode))
+  hs.alert.show("Could not force a new Comet window; opened URLs normally.", 5)
+  openUrlsWithDefaultBehavior(urls)
+  return false
+end
+
+local function openUrlsInCometWindow(urls)
+  local lines = {
+    "tell application " .. appleScriptQuote(cometBrowserAppPath),
+    "activate",
+    "set targetWindow to make new window with properties {URL:" .. appleScriptQuote(urls[1]) .. "}",
+  }
+
+  for index = 2, #urls do
+    table.insert(lines, "tell targetWindow to make new tab at end of tabs with properties {URL:" .. appleScriptQuote(urls[index]) .. "}")
+  end
+
+  table.insert(lines, "end tell")
+
+  local ok, result = hs.osascript.applescript(table.concat(lines, "\n"))
+  if ok then
+    return true
+  end
+
+  print("Workspace launcher: Comet AppleScript window failed: " .. tostring(result))
+  return openUrlsInCometWindowWithCommand(urls)
+end
+
+local function openUrlsInChromiumWindow(urls)
+  local commandParts = { "/usr/bin/open", "-n" }
+  local bundleId = chromiumBrowserBundleIds[browser]
+
+  if bundleId then
+    table.insert(commandParts, "-b")
+    table.insert(commandParts, shellQuote(bundleId))
+  else
+    table.insert(commandParts, "-a")
+    table.insert(commandParts, shellQuote(browser))
+  end
+
+  table.insert(commandParts, "--args")
+  table.insert(commandParts, "--new-window")
+
+  for _, url in ipairs(urls) do
+    table.insert(commandParts, shellQuote(url))
+  end
+
+  return runBrowserCommand(table.concat(commandParts, " "), urls)
+end
+
+local function openUrlsInNewBrowserWindow(urls)
+  if type(urls) ~= "table" or #urls == 0 then
+    return
+  end
+
+  if browser == "Safari" then
+    openUrlsInSafariWindow(urls)
+  elseif browser == "Comet" then
+    openUrlsInCometWindow(urls)
+  elseif chromiumBrowsers[browser] then
+    openUrlsInChromiumWindow(urls)
+  else
+    hs.alert.show(browser .. " is not configured for new-window URL launching; opened URLs normally.", 5)
+    openUrlsWithDefaultBehavior(urls)
+  end
 end
 
 local function openPathInApp(appName, path)
@@ -111,7 +271,7 @@ local function openCodexAtPath(path)
   hs.timer.doAfter(0.1, relaunchWhenGone)
 end
 
-local function openCodingProject(projectPath, projectName)
+local function openCodingProject(projectPath, projectName, urls)
   for _, app in ipairs(codingApps) do
     if app.name == "Codex" then
       openCodexAtPath(projectPath)
@@ -121,11 +281,15 @@ local function openCodingProject(projectPath, projectName)
       openApp(app.name)
     end
   end
+  if urls then
+    openUrlsInNewBrowserWindow(urls)
+  end
   hs.alert.show("Opened " .. projectName .. " workspace")
 end
 
-local function directProjectChoices()
+local function directProjectChoices(workflow)
   local choices = {}
+  local urls = workflow and workflow.urls or nil
 
   local iterator, errorMessage = hs.fs.dir(projectsRoot)
   if not iterator then
@@ -158,6 +322,7 @@ local function directProjectChoices()
       text = name,
       subText = path,
       projectPath = path,
+      urls = urls,
     })
   end
 
@@ -169,21 +334,21 @@ local projectChooser = hs.chooser.new(function(choice)
     return
   end
 
-  openCodingProject(choice.projectPath, choice.text)
+  openCodingProject(choice.projectPath, choice.text, choice.urls)
 end)
 
 projectChooser:placeholderText("Choose a coding project")
 projectChooser:searchSubText(true)
 
-local function showProjectChooser()
-  projectChooser:choices(directProjectChoices())
+local function showProjectChooser(workflow)
+  projectChooser:choices(directProjectChoices(workflow))
   projectChooser:show()
 end
 
 local function resolveWorkflow(workflow)
   return function()
     if workflow.type == "project_chooser" then
-      showProjectChooser()
+      showProjectChooser(workflow)
     else
       if workflow.apps then
         for _, appName in ipairs(workflow.apps) do
@@ -191,9 +356,7 @@ local function resolveWorkflow(workflow)
         end
       end
       if workflow.urls then
-        for _, url in ipairs(workflow.urls) do
-          openUrlInBrowser(url)
-        end
+        openUrlsInNewBrowserWindow(workflow.urls)
       end
       hs.alert.show("Opened " .. workflow.text)
     end

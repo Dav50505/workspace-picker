@@ -5,8 +5,8 @@ A Hammerspoon-based workspace launcher for macOS. Hit a keyboard shortcut, pick 
 ## What It Does
 
 - **Workspace Chooser** -- press `Shift+Cmd+Return` (configurable) and select a workspace from a searchable list
-- **Project Chooser** -- the "Code" workflow lists all subdirectories in your projects folder; pick one and your editor, terminal, and other tools open with that folder
-- **Custom Workflows** -- define any number of named workflows that launch specific apps and open specific URLs in your browser
+- **Project Chooser** -- the "Code" workflow lists all subdirectories in your projects folder; pick one and your editor, terminal, optional browser tabs, and other tools open with that folder
+- **Custom Workflows** -- define any number of named workflows that launch specific apps and open that workflow's URLs together in a new browser window
 
 ## Requirements
 
@@ -66,6 +66,8 @@ The browser used to open URLs in workflows. Must match the exact application nam
 browser = "Safari"       -- or "Google Chrome", "Arc", "Firefox", "Brave Browser", etc.
 ```
 
+For Safari, Comet, and supported Chromium-style browsers, URLs from one selected workflow open together in a dedicated new window instead of being added to an existing browser window. Comet and Safari use dedicated window handling; supported Chromium-style browsers use their new-window launch flag. Unsupported browsers fall back to normal macOS URL opening.
+
 ### `codingApps`
 
 A list of apps launched when you open a coding project from the project chooser.
@@ -100,19 +102,23 @@ A list of workspace definitions that appear in the chooser. Two types:
 
 #### Project Chooser Workflow
 
-Opens a secondary chooser listing subdirectories of `projectsRoot`. When you pick one, all `codingApps` are launched with that folder.
+Opens a secondary chooser listing subdirectories of `projectsRoot`. When you pick one, all `codingApps` are launched with that folder. Add `urls` if you also want browser tabs to open after choosing a project.
 
 ```lua
 {
   text = "Code",
   subText = "Launch coding apps and choose a project",
   type = "project_chooser",
+  urls = {
+    "https://github.com/",
+    "https://linear.app/",
+  },
 }
 ```
 
 #### Custom Workflow
 
-Launches specific apps and opens specific URLs in your browser.
+Launches specific apps and opens specific URLs together in a new browser window.
 
 ```lua
 {

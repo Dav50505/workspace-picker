@@ -21,6 +21,10 @@ return {
   -- The browser used to open URLs in workflows. Must match the exact
   -- application name as it appears in macOS (e.g. "Safari", "Google Chrome",
   -- "Arc", "Firefox", "Comet").
+  -- URLs for a selected workflow open together in a new browser window when
+  -- the configured browser supports new-window launching. Comet and Safari
+  -- use dedicated window handling; Chrome, Brave, Edge, Arc, Opera, and
+  -- Vivaldi use Chromium-style new-window launching.
   browser = "Safari",
 
   -- -------------------------------------------------------------------------
@@ -46,22 +50,26 @@ return {
   --   1. Project Chooser (type = "project_chooser")
   --      Opens a secondary chooser listing subdirectories of projectsRoot.
   --      When you pick one, all codingApps are launched with that folder.
+  --      Optional urls open together after you choose a project.
   --
   --   2. Custom Workflow (any other type)
   --      - apps: list of application names to launch
-  --      - urls: list of URLs to open in your configured browser
+  --      - urls: list of URLs to open together in a new browser window
   --
   -- Fields:
   --   text     - Display name in the chooser
   --   subText  - Description shown below the name
   --   type     - "project_chooser" or any other string
   --   apps     - (custom only) list of app names to launch
-  --   urls     - (custom only) list of URLs to open in browser
+  --   urls     - list of URLs to open in browser
   workflows = {
     {
       text = "Code",
       subText = "Launch coding apps and choose a project",
       type = "project_chooser",
+      urls = {
+        "https://github.com/",
+      },
     },
     {
       text = "Research",
